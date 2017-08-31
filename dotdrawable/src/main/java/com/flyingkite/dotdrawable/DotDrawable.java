@@ -11,7 +11,6 @@ import android.graphics.drawable.Drawable;
 import android.util.Log;
 
 public class DotDrawable extends Drawable implements Drawable.Callback {
-
     // constants
     private static final int MAX_LEVEL = 10000;
     private static final int CENT_LEVEL = MAX_LEVEL / 2;

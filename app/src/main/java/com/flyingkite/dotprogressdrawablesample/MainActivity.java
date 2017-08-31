@@ -13,7 +13,14 @@ public class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        ProgressBar p = (ProgressBar) findViewById(R.id.myProgress);
+        setMyDrawable(R.id.myProgress);
+        setMyDrawable(R.id.myProgress1);
+        setMyDrawable(R.id.myProgress2);
+    }
+
+    private void setMyDrawable(int id) {
+        ProgressBar p = (ProgressBar) findViewById(id);
         p.setIndeterminateDrawable(new DotDrawable());
     }
+
 }

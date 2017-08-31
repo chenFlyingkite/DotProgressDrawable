@@ -26,4 +26,19 @@
         android:background="#000"
         android:layout_centerInParent="true"/>
 
+    <ProgressBar
+        android:id="@+id/myProgress1"
+        android:layout_width="300dp"
+        android:layout_height="100dp"
+        android:indeterminate="true"
+        android:background="#000"/>
+
+    <ProgressBar
+        android:id="@+id/myProgress2"
+        android:layout_width="100dp"
+        android:layout_height="300dp"
+        android:indeterminate="true"
+        android:background="#000"
+        android:layout_alignParentBottom="true"/>
+
 </RelativeLayout>
