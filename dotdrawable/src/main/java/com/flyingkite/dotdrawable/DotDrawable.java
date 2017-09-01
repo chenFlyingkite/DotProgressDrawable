@@ -1,345 +1,210 @@
 package com.flyingkite.dotdrawable;
 
-import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.ColorFilter;
 import android.graphics.Paint;
 import android.graphics.PixelFormat;
-import android.graphics.Point;
+import android.graphics.PointF;
 import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
-import android.util.Log;
 
-public class DotDrawable extends Drawable implements Drawable.Callback {
-    // constants
+import java.util.Arrays;
+
+public class DotDrawable extends Drawable {
+    // Drawable's max level
     private static final int MAX_LEVEL = 10000;
-    private static final int CENT_LEVEL = MAX_LEVEL / 2;
-    private static final int MID_LEVEL = CENT_LEVEL / 2;
-    private static final int ALPHA_OPAQUE = 255;
-    private static final int ACCELERATION_LEVEL = 2;
 
-    // default
-    private int mAlpha = ALPHA_OPAQUE;
-    private ColorFilter mColorFilter;
+    // google colors, red, green, blue, yellow
+    private static final int RED = 0xFFC93437;
+    private static final int BLUE = 0xFF375BF1;
+    private static final int GREEN = 0xFF34A350;
+    private static final int YELLOW = 0xFFF7D23E;
+    private int[] mDotColors = {RED, GREEN, BLUE, YELLOW};
 
     // points and paints
-    private Point[] mArrowPoints;
-    private Paint mPaint1;
-    private Paint mPaint2;
-    private Paint mPaint3;
-    private Paint mPaint4;
-    private double unit;
-    private int width, x_beg, y_beg, x_end, y_end, offset;
+    private Paint[] mDotPaints = new Paint[4];
+    private PointF[] mDotXY = new PointF[4];
+    private int topDotIndex = 0;
 
-    // speed related
-    private int acceleration = ACCELERATION_LEVEL;
-    private double distance = 0.5 * ACCELERATION_LEVEL * MID_LEVEL * MID_LEVEL;
-    private double max_speed; // set in setAcceleration(...);
-    private double offsetPercentage;
+    // The scale of dot, radius = width / mDotScale
+    private float mDotScale = 5;
+    private float mDotRadius;
 
-    // top color var
-    private int colorSign;
-    private ProgressStates currentProgressStates = ProgressStates.GREEN_TOP;
+    // pause the drawable and no need to drawn again
+    private boolean mPause = false;
 
-    private enum ProgressStates {
-        GREEN_TOP,
-        YELLOW_TOP,
-        RED_TOP,
-        BLUE_TOP
-    }
+    // previous value of dot on the top
+    private int prevT;
+
+    // Speed
+    private static final int ACCELERATION = 1;
+    private int mAcceleration;
+    private int mHalfPeriod;
+    private int mSide;
 
     public DotDrawable() {
-        initCirclesProgress(new int[]{
-                0xFFC93437, 0xFF375BF1, 0xFFF7D23E, 0xFF34A350
-        });
+        init();
     }
 
     public DotDrawable(int[] colors) {
-        initCirclesProgress(colors);
+        setColors(colors);
+        init();
     }
 
-    private void initCirclesProgress(int[] colors) {
-        //init Paint colors
-        initColors(colors);
-
-        // init alpha and color filter
-        setAlpha(mAlpha);
-        setColorFilter(mColorFilter);
-
-        // offset percentage
-        setAcceleration(ACCELERATION_LEVEL);
-        offsetPercentage = 0;
-
-        // init colorSign
-        colorSign = 1; // |= 1, |= 2, |= 4, |= 8 --> 0xF
+    /**
+     * The 4 colors of dot, from left-top, clockwise
+     * @param colors Colors of dot in left top, right top, right bottom and left bottom
+     */
+    public void setColors(int[] colors) {
+        if (colors == null || colors.length != 4) {
+            throw new IllegalArgumentException("Invalid 4 colors, " + Arrays.toString(colors));
+        }
+        mDotColors = colors;
     }
 
-    private void initColors(int[] colors) {
-        // red circle, left up
-        mPaint1 = new Paint(Paint.ANTI_ALIAS_FLAG);
-        mPaint1.setColor(colors[0]);
-        mPaint1.setAntiAlias(true);
+    private void init() {
+        setPaints();
+        setAlpha(255);
+        setAcceleration(ACCELERATION);
+    }
 
-        // blue circle, right down
-        mPaint2 = new Paint(Paint.ANTI_ALIAS_FLAG);
-        mPaint2.setColor(colors[1]);
-        mPaint2.setAntiAlias(true);
+    private void setPaints() {
+        for (int i = 0; i < 4; i++) {
+            mDotXY[i] = new PointF();
+            mDotPaints[i] = new Paint(Paint.ANTI_ALIAS_FLAG);
+            mDotPaints[i].setColor(mDotColors[i]);
+            mDotPaints[i].setAntiAlias(true);
+        }
+    }
 
-        // yellow circle, left down
-        mPaint3 = new Paint(Paint.ANTI_ALIAS_FLAG);
-        mPaint3.setColor(colors[2]);
-        mPaint3.setAntiAlias(true);
+    public void setPause(boolean pause) {
+        mPause = pause;
+    }
 
-        // green circle, right up
-        mPaint4 = new Paint(Paint.ANTI_ALIAS_FLAG);
-        mPaint4.setColor(colors[3]);
-        mPaint4.setAntiAlias(true);
+    public void setAcceleration(int acceleration) {
+        mAcceleration = acceleration;
+        mHalfPeriod = MAX_LEVEL / acceleration / 2;
+    }
+
+    public void setDotScale(float dotScale) {
+        mDotScale = dotScale;
+        updateRadius(mSide);
     }
 
     @Override
     protected void onBoundsChange(Rect bounds) {
-        Log("onBoundsChange %s", bounds);
         super.onBoundsChange(bounds);
-        measureCircleProgress(bounds.width(), bounds.height());
-    }
-
-    private static final String TAG = "Hi";
-    public static void Log(String msg) {
-        Log.e(TAG, msg);
-    }
-
-    public static void Log(String format, Object... params) {
-        Log(String.format(format, params));
-    }
-
-    @Override
-    protected boolean onLevelChange(int level) {
-        Log("onLevelChange %s", level);
-        // calc one offset data is enough
-        // 0.5 * a * t^2 / mCenterPoint.x = level / sideLevel
-        // t from 0 to 10,000, so divided into 4 parts.
-        // the ACCELERATION_LEVEL defines how many divisions in 10000 levels
-        level %= MAX_LEVEL / acceleration;
-
-        final int temp_level = level % (MID_LEVEL / acceleration);
-        final int ef_width = (int)(unit * 3.0); // effective width
-        if(level < CENT_LEVEL / acceleration) { // go
-            if(level < MID_LEVEL / acceleration) {
-                // set colorSign
-                if(colorSign == 0xF) {
-                    changeTopColor();
-                    colorSign = 1;
-                }
-                // from beg to mid
-                offsetPercentage = 0.5 * acceleration * temp_level * temp_level / distance;
-                offset = (int)(offsetPercentage * ef_width / 2); // x and y direction offset
+        int W = bounds.width();
+        int H = bounds.height();
+        int min;
+        // Dots align at left-top
+        if (W > H) { // landscape
+            if ((H & 0x1) != 0) { // minus 1 if odd
+                H--;
             }
-            else {
-                // set colorSign
-                colorSign |= 2;
-                // from mid to end
-                offsetPercentage = (max_speed * temp_level
-                        - 0.5 * acceleration * temp_level * temp_level) / distance
-                        + 1.0;
-                offset = (int)(offsetPercentage * ef_width / 2); // x and y direction offset
+            min = H;
+        } else { // portrait
+            if ((W & 0x1) != 0) { // minus 1 if odd
+                W--;
             }
+            min = W;
         }
-        else { // back
-            if(level < (CENT_LEVEL + MID_LEVEL) / acceleration) {
-                // set colorSign
-                if(colorSign == 0x3) {
-                    changeTopColor();
-                    colorSign |= 4;
-                }
-                // from end to mid
-                offsetPercentage = 0.5 * acceleration * temp_level * temp_level  / distance;
-                offset = (int)(ef_width - offsetPercentage * ef_width / 2); // x and y direction offset
-            }
-            else {
-                // set colorSign
-                colorSign |= 8;
-                // from mid to beg
-                offsetPercentage = (max_speed * temp_level
-                        - 0.5 * acceleration * temp_level * temp_level) / distance
-                        + 1.0;
-                offsetPercentage = offsetPercentage == 1.0 ? 2.0 : offsetPercentage;
-                offset = (int)(ef_width - offsetPercentage * ef_width / 2); // x and y direction offset
-            }
-        }
-
-        mArrowPoints[0].set((int)unit+x_beg+offset, (int)unit+y_beg+offset); // mPaint1, left up
-        mArrowPoints[1].set((int)(unit*4.0)+x_beg-offset, (int)(unit*4.0)+y_beg-offset); // mPaint2, right down
-        mArrowPoints[2].set((int)unit+x_beg+offset, (int)(unit*4.0)+y_beg-offset); // mPaint3, left down
-        mArrowPoints[3].set((int)(unit*4.0)+x_beg-offset, (int)unit+y_beg+offset); // mPaint4, right up
-
-        return true;
+        mSide = min;
+        updateRadius(min);
     }
 
-    private void changeTopColor() {
-        switch(currentProgressStates){
-            case GREEN_TOP:
-                currentProgressStates = ProgressStates.YELLOW_TOP;
-                break;
-            case YELLOW_TOP:
-                currentProgressStates = ProgressStates.RED_TOP;
-                break;
-            case RED_TOP:
-                currentProgressStates = ProgressStates.BLUE_TOP;
-                break;
-            case BLUE_TOP:
-                currentProgressStates = ProgressStates.GREEN_TOP;
-                break;
-        }
+    private void updateRadius(int width) {
+        mDotRadius = width / mDotScale;
+        float s = mDotScale - 1;
+        mDotXY[0].set(mDotRadius,     mDotRadius);
+        mDotXY[1].set(mDotRadius * s, mDotRadius);
+        mDotXY[2].set(mDotRadius * s, mDotRadius * s);
+        mDotXY[3].set(mDotRadius,     mDotRadius * s);
     }
 
     @Override
     public void draw(Canvas canvas) {
-        Log("draw %s", canvas);
-        // draw circles
-        if(currentProgressStates != ProgressStates.RED_TOP)
-            canvas.drawCircle(mArrowPoints[0].x, mArrowPoints[0].y, (float)unit, mPaint1);
-        if(currentProgressStates != ProgressStates.BLUE_TOP)
-            canvas.drawCircle(mArrowPoints[1].x, mArrowPoints[1].y, (float)unit, mPaint2);
-        if(currentProgressStates != ProgressStates.YELLOW_TOP)
-            canvas.drawCircle(mArrowPoints[2].x, mArrowPoints[2].y, (float)unit, mPaint3);
-        if(currentProgressStates != ProgressStates.GREEN_TOP)
-            canvas.drawCircle(mArrowPoints[3].x, mArrowPoints[3].y, (float)unit, mPaint4);
-
-        // draw the top one
-        switch(currentProgressStates){
-            case GREEN_TOP:
-                canvas.drawCircle(mArrowPoints[3].x, mArrowPoints[3].y, (float)unit, mPaint4);
-                break;
-            case YELLOW_TOP:
-                canvas.drawCircle(mArrowPoints[2].x, mArrowPoints[2].y, (float)unit, mPaint3);
-                break;
-            case RED_TOP:
-                canvas.drawCircle(mArrowPoints[0].x, mArrowPoints[0].y, (float)unit, mPaint1);
-                break;
-            case BLUE_TOP:
-                canvas.drawCircle(mArrowPoints[1].x, mArrowPoints[1].y, (float)unit, mPaint2);
-                break;
+        // Draw the other 3 non-top dots
+        int i;
+        for (i = 3; i >= 0; i--) {
+            if (i != topDotIndex) {
+                canvas.drawCircle(mDotXY[i].x, mDotXY[i].y, mDotRadius, mDotPaints[i]);
+            }
         }
+
+        // Draw the top dot
+        i = topDotIndex;
+        canvas.drawCircle(mDotXY[i].x, mDotXY[i].y, mDotRadius, mDotPaints[i]);
     }
 
-    private void measureCircleProgress(int width, int height) {
-        // get min edge as width
-        if(width > height) {
-            // use height
-            this.width = height - 1; // minus 1 to avoid "3/2=1"
-            x_beg = (width - height) / 2 + 1;
-            y_beg = 1;
-            x_end = x_beg + this.width;
-            y_end = this.width;
-        }
-        else {
-            //use width
-            this.width = width - 1;
-            x_beg = 1;
-            y_beg = (height - width) / 2 + 1;
-            x_end = this.width;
-            y_end = y_beg + this.width;
-        }
-        unit = (double)this.width / 5.0;
+    @Override
+    protected boolean onLevelChange(int level) {
+        if (mPause) return false;
+        //  T = time max, O = (0, 0)
+        //  A = (T/4, V), B = (T/2, 0)
+        //  C = (3T/4, -V), D = (T, 0)
+        //    |   A
+        //  V #  /\
+        //    | /  \
+        //    |/    \
+        //  --O-----B------D-----
+        //    |      \    /
+        //    |       \  /
+        // -V #        \/
+        //    |        C
 
-        // init the original position, and then set position by offsets
-        mArrowPoints = new Point[4];
-        mArrowPoints[0] = new Point((int)unit+x_beg, (int)unit+y_beg); // mPaint1, left up
-        mArrowPoints[1] = new Point((int)(unit*4.0)+x_beg, (int)(unit*4.0)+y_beg); // mPaint2, right down
-        mArrowPoints[2] = new Point((int)unit+x_beg, (int)(unit*4.0)+y_beg); // mPaint3, left down
-        mArrowPoints[3] = new Point((int)(unit*4.0)+x_beg, (int)unit+y_beg); // mPaint4, right up
-    }
+        // Velocity = sin(t) => Distance = A - B * cos(t)
+        double freq = 2 * Math.PI * mAcceleration / MAX_LEVEL; // frequency = 2*PI / period
+        int t = level % (MAX_LEVEL / mAcceleration);
+        float A = mDotRadius * mDotScale / 2; // Start point, center of drawable
+        float B = mDotRadius * (mDotScale / 2 - 1); // Amplitude, waving distance
+        float dx = (float) Math.cos(freq * t);
+        float go = A - B * dx;
+        float back = A + B * dx;
 
-    public void setAcceleration(int acceleration) {
-        this.acceleration = acceleration;
-        distance = 0.5 * acceleration * (MID_LEVEL / acceleration) * (MID_LEVEL / acceleration);
-        max_speed = acceleration * (MID_LEVEL / acceleration);
+        // Point order should sync with #updateRadius()
+        mDotXY[0].set(go, go);
+        mDotXY[1].set(back, go);
+        mDotXY[2].set(back, back);
+        mDotXY[3].set(go, back);
+
+        // t2 is to treat level 10000 as 9999, so we can know next period has come
+        // And to change the dot on the top
+        int t2 = (t == 10000) ? 9999 : t;
+        int newT = t2 / mHalfPeriod;
+        if (prevT != newT) {
+            topDotIndex = (topDotIndex + 1) % 4;
+        }
+        prevT = newT;
+        return true; // appearance of the Drawable changed
     }
 
     @Override
     public void setAlpha(int alpha) {
-        Log("setAlpha %s", alpha);
-        mPaint1.setAlpha(alpha);
-        mPaint2.setAlpha(alpha);
-        mPaint3.setAlpha(alpha);
-        mPaint4.setAlpha(alpha);
+        for (int i = 0; i < 4; i++) {
+            mDotPaints[i].setAlpha(alpha);
+        }
+    }
+
+    @Override
+    public int getAlpha() {
+        return mDotPaints[0].getAlpha();
     }
 
     @Override
     public void setColorFilter(ColorFilter cf) {
-        Log("setColorFilter %s", cf);
-        mColorFilter = cf;
-        mPaint1.setColorFilter(cf);
-        mPaint2.setColorFilter(cf);
-        mPaint3.setColorFilter(cf);
-        mPaint4.setColorFilter(cf);
+        for (int i = 0; i < 4; i++) {
+            mDotPaints[i].setColorFilter(cf);
+        }
+    }
+
+    @Override
+    public ColorFilter getColorFilter() {
+        return mDotPaints[0].getColorFilter();
     }
 
     @Override
     public int getOpacity() {
         return PixelFormat.TRANSLUCENT;
-    }
-
-    @Override
-    public void invalidateDrawable(Drawable who) {
-        Log("inv dr %s", who);
-        final Callback callback = getCallback();
-        if (callback != null) {
-            callback.invalidateDrawable(this);
-        }
-    }
-
-    @Override
-    public void scheduleDrawable(Drawable who, Runnable what, long when) {
-        Log("skd dr %s, %s, %s", who, what, when);
-        final Callback callback = getCallback();
-        if (callback != null) {
-            callback.scheduleDrawable(this, what, when);
-        }
-    }
-
-    @Override
-    public void unscheduleDrawable(Drawable who, Runnable what) {
-        Log("usk %s, %s", who, what);
-        final Callback callback = getCallback();
-        if (callback != null) {
-            callback.unscheduleDrawable(this, what);
-        }
-    }
-
-    public static class Builder {
-        private int[] mColors;
-
-        public Builder(Context context){
-            initDefaults(context);
-            return;
-        }
-
-        private void initDefaults(Context context) {
-            //Default values
-
-//            <color name="red">#FFC93437</color>
-//            <color name="blue">#FF375BF1</color>
-//            <color name="yellow">#FFF7D23E</color>
-//            <color name="green">#FF34A350</color>
-            mColors = new int[]{
-                    0xFFC93437, 0xFF375BF1, 0xFFF7D23E, 0xFF34A350
-            };
-            //context.getResources().getIntArray(R.array.google_colors);
-            return;
-        }
-
-        public Builder colors(int[] colors) {
-            if (colors == null || colors.length == 0) {
-                throw new IllegalArgumentException("Your color array must contains at least 4 values");
-            }
-
-            mColors = colors;
-            return this;
-        }
-
-        public Drawable build() {
-            return new DotDrawable(mColors);
-        }
     }
 }
