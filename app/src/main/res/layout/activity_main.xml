@@ -7,41 +7,26 @@
     android:layout_height="match_parent"
     tools:context="com.flyingkite.dotprogressdrawablesample.MainActivity">
 
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Hello World!"/>
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+            <Button
+                android:id="@+id/goDots"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Dots"/>
 
-    <ImageView
-        android:id="@+id/img"
-        android:layout_width="100dp"
-        android:layout_height="100dp"
-        android:layout_alignParentEnd="true"
-        android:layout_centerVertical="true"
-        android:padding="20dp"
-        android:background="#000"/>
+            <Button
+                android:id="@+id/goPager"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Pagers"/>
 
-    <ProgressBar
-        android:id="@+id/myProgress"
-        android:layout_width="100dp"
-        android:layout_height="100dp"
-        android:indeterminate="true"
-        android:background="#000"
-        android:layout_centerInParent="true"/>
-
-    <ProgressBar
-        android:id="@+id/myProgress1"
-        android:layout_width="300dp"
-        android:layout_height="100dp"
-        android:indeterminate="true"
-        android:background="#000"/>
-
-    <ProgressBar
-        android:id="@+id/myProgress2"
-        android:layout_width="100dp"
-        android:layout_height="300dp"
-        android:indeterminate="true"
-        android:background="#000"
-        android:layout_alignParentBottom="true"/>
+        </LinearLayout>
+    </ScrollView>
 
 </RelativeLayout>
