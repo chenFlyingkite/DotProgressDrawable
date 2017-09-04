@@ -2,6 +2,9 @@
 
 Inspired from https://github.com/jpardogo/GoogleProgressBar
 
+TODO : Learn how to publish as release
+https://github.com/levibostian/PermissionUtil
+
 ![NexusRotationCross.gif][11]
 
 ![playstore][2]
