@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <!--
+        fail
+        style="@style/myProgress"
+        OK
+        style="@style/Widget.AppCompat.ProgressBar.Horizontal"
+        style="@style/Base.Widget.AppCompat.ProgressBar.Horizontal"
+        style="@android:style/Widget.ProgressBar.Horizontal"
+     -->
+    <ProgressBar
+        android:layout_width="200dp"
+        android:layout_height="200dp"
+        style="@style/Widget.AppCompat.ProgressBar.Horizontal"
+        android:indeterminate="false"
+        android:progressDrawable="@drawable/progress_color"
+        android:progress="20"
+        android:secondaryProgress="60"/>
+</LinearLayout>
