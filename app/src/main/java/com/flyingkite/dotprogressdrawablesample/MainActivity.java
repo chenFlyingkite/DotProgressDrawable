@@ -5,6 +5,7 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.view.View;
 
+import com.flyingkite.logs.Logs;
 import com.flyingkite.util.Say;
 
 public class MainActivity extends Activity {
@@ -20,6 +21,7 @@ public class MainActivity extends Activity {
         }
         int callId = R.id.goPager;
         //findViewById(callId).callOnClick();
+        Logs.e("Hi, this is from QQ");
     }
 
     @Override

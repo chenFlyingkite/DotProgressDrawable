@@ -25,4 +25,5 @@ dependencies {
     compile 'com.android.support:design:23.0.0'
 
     //compile 'com.github.jitpack:android-example:1.0.1'
+    compile 'com.github.chenFlyingkite:QQ:0.0.1-2'
 }
